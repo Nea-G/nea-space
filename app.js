@@ -284,7 +284,6 @@ function NavHeader({ userName, onImportClick }) {
         <div style={{ fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--color-accent-700)", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ width: 24, height: 1, background: "var(--color-accent-400)", display: "inline-block" }}></span>
           {dateStr}
-          <span style={{ color: "var(--color-accent-2-600)", fontSize: 13 }}>✳</span>
         </div>
         <div style={{ fontFamily: "var(--font-heading)", fontWeight: "var(--font-heading-weight)", fontSize: 30, lineHeight: 1.15 }}>
           {greetWord}, {userName}
@@ -845,9 +844,9 @@ function CalendarCard({ state, setState, page, setPage }) {
           <div style={{ textAlign: "center", fontFamily: "var(--font-heading)", fontWeight: "var(--font-heading-weight)", fontSize: 18, marginBottom: 8 }}>
             {MONTH_NAMES[monthAnchor.getMonth()]} {monthAnchor.getFullYear()}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1, background: "var(--color-divider)", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 1, background: "var(--color-divider)", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
             {DAY_NAMES.map((lbl) => (
-              <div key={lbl} style={{ background: "var(--color-bg)", padding: 6, textAlign: "center", fontSize: 11, textTransform: "uppercase", opacity: 0.65 }}>{lbl}</div>
+              <div key={lbl} style={{ background: "var(--color-bg)", padding: 6, textAlign: "center", fontSize: 11, textTransform: "uppercase", opacity: 0.65, minWidth: 0 }}>{lbl}</div>
             ))}
             {monthCells.map((d, i) => {
               const inMonth = d.getMonth() === monthAnchor.getMonth();
@@ -855,7 +854,7 @@ function CalendarCard({ state, setState, page, setPage }) {
               const dEvents = eventsForWeek(state.events, wkMon).filter((e) => sameDate(e.occursOn, d));
               const iso = toISODate(d);
               return (
-                <div key={i} style={{ background: sameDate(d, today) ? "var(--color-accent-100)" : "var(--color-bg)", minHeight: 92, padding: 6, display: "flex", flexDirection: "column", gap: 3, opacity: inMonth ? 1 : 0.4 }}>
+                <div key={i} style={{ background: sameDate(d, today) ? "var(--color-accent-100)" : "var(--color-bg)", minHeight: 92, minWidth: 0, padding: 6, display: "flex", flexDirection: "column", gap: 3, opacity: inMonth ? 1 : 0.4 }}>
                   <div style={{ fontFamily: "var(--font-heading)", fontWeight: "var(--font-heading-weight)", fontSize: 13 }}>{d.getDate()}</div>
                   {!overlay && dEvents.slice(0, 3).map((ev) => (
                     <div key={ev.id} style={{ fontSize: 9, lineHeight: 1.25, padding: "2px 5px", borderLeft: `3px solid ${eventColor(ev)}`, background: "color-mix(in srgb, " + eventColor(ev) + " 14%, var(--color-bg))", borderRadius: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -1051,9 +1050,9 @@ function GymPage({ state, setState, setPage }) {
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
             <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", opacity: 0.6 }}>This week's rotation</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6, marginBottom: "var(--space-4)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 6, marginBottom: "var(--space-4)" }}>
             {gymWeek.map((gw, i) => (
-              <div key={i} style={{ textAlign: "center", padding: "8px 4px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-divider)", background: sameDate(gw.date, today) ? "var(--color-accent-2-100)" : "transparent" }}>
+              <div key={i} style={{ minWidth: 0, textAlign: "center", padding: "8px 4px", borderRadius: "var(--radius-md)", border: "1px solid var(--color-divider)", background: sameDate(gw.date, today) ? "var(--color-accent-2-100)" : "transparent" }}>
                 <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".04em", opacity: 0.6 }}>{DAY_NAMES[i]}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: gw.cell ? (gw.cell.done ? "var(--color-accent-2-700)" : "var(--color-neutral-600)") : "var(--color-neutral-400)", marginTop: 4 }}>{gw.cell ? `D${gw.cell.n}` : "rest"}</div>
                 <div style={{ fontSize: 10, opacity: 0.75 }}>{gw.cell ? gw.cell.label : ""}</div>
