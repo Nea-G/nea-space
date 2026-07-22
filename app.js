@@ -815,12 +815,12 @@ function CalendarCard({ state, setState, page, setPage }) {
           )}
           {!overlay && (
             <div style={{ maxHeight: compact ? 340 : 2000, overflow: "hidden", transition: "max-height .25s ease" }}>
-              <div style={{ position: "relative", display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", gridTemplateRows: `repeat(${HOURS.length},34px)`, minWidth: 920, backgroundImage: "repeating-linear-gradient(to bottom,var(--color-divider) 0,var(--color-divider) 1px,transparent 1px,transparent 34px)" }}>
+              <div style={{ position: "relative", display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", gridTemplateRows: `repeat(${HOURS.length},34px)`, minWidth: 920, background: "var(--color-surface)", backgroundImage: "repeating-linear-gradient(to bottom,color-mix(in srgb, var(--color-text) 20%, transparent) 0,color-mix(in srgb, var(--color-text) 20%, transparent) 1px,transparent 1px,transparent 34px)" }}>
                 {HOURS.map((h, i) => (
                   <div key={h} style={{ gridColumn: 1, gridRow: i + 1, fontSize: 10, opacity: 0.6, padding: "2px 6px", textAlign: "right" }}>{hourLabel(h)}</div>
                 ))}
                 {weekDates.map((d, i) => (
-                  <div key={i} style={{ gridColumn: i + 2, gridRow: "1 / -1", borderLeft: "1px solid var(--color-divider)", background: sameDate(d, today) ? "color-mix(in srgb, var(--color-accent) 6%, transparent)" : "transparent" }}></div>
+                  <div key={i} style={{ gridColumn: i + 2, gridRow: "1 / -1", borderLeft: "1px solid color-mix(in srgb, var(--color-text) 20%, transparent)", background: sameDate(d, today) ? "color-mix(in srgb, var(--color-accent) 8%, transparent)" : "transparent" }}></div>
                 ))}
                 {weekEvents.filter((ev) => ev.type !== "deadline").map((ev) => {
                   const dayIdx = ev.occursOn.getDay() === 0 ? 6 : ev.occursOn.getDay() - 1;
