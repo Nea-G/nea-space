@@ -1134,7 +1134,7 @@ function SchoolPage({ state, setState, setPage }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: "var(--space-4)" }}>
           {state.courses.map((c) => {
             const linked = state.events
-              .filter((e) => e.courseId === c.id)
+              .filter((e) => e.courseId === c.id && e.type === "deadline")
               .map((e) => ({ ...e, occursOn: nextOccurrenceOnOrAfter(e, today) }))
               .filter((e) => e.occursOn >= today)
               .sort((a, b) => a.occursOn - b.occursOn);
