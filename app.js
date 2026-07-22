@@ -224,8 +224,10 @@ function TodoRow({ item, onToggle, onRemove, onUpdate, dragProps, checkboxStyle 
         <input type="checkbox" checked={item.done} onChange={onToggle} style={{ flex: "none" }} />
       ) : (
         <button
+          key={item.done}
           onClick={onToggle}
           title="Mark done"
+          className="pop-in"
           style={{
             width: 15, height: 15, borderRadius: "50%", border: "1.5px solid var(--color-accent)",
             background: item.done ? "var(--color-accent)" : "transparent", flex: "none", cursor: "pointer", padding: 0,
@@ -291,7 +293,7 @@ function NavHeader({ userName, onImportClick }) {
         <button className="btn btn-ghost" style={{ fontSize: 11, padding: "2px 0" }} onClick={onImportClick}>⇪ data</button>
       </div>
       <div className="assistant-line" style={{ marginLeft: "auto" }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-accent-700)", display: "inline-block", flex: "none" }}></span>
+        <span className="dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-accent-700)", display: "inline-block", flex: "none" }}></span>
         <span style={{ fontSize: 12, color: "var(--color-accent-800)", fontWeight: 600, fontStyle: "italic" }}>{line}</span>
       </div>
     </div>
@@ -692,7 +694,7 @@ function CalendarCard({ state, setState, page, setPage }) {
       </div>
 
       {showAdd && (
-        <div style={{ marginBottom: "var(--space-3)", padding: "var(--space-3)", border: "1px dashed var(--color-accent)", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
+        <div className="fade-in-up" style={{ marginBottom: "var(--space-3)", padding: "var(--space-3)", border: "1px dashed var(--color-accent)", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
           <div className="add-event-row" style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", alignItems: "flex-end" }}>
             <div className="field" style={{ flex: 2, minWidth: 180 }}>
               <label>What's happening</label>
@@ -759,7 +761,7 @@ function CalendarCard({ state, setState, page, setPage }) {
       )}
 
       {view === "week" && (
-        <div style={{ overflowX: "auto" }}>
+        <div className="fade-in-up" style={{ overflowX: "auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", minWidth: 920 }}>
             <div></div>
             {weekDates.map((d, i) => (
@@ -840,7 +842,7 @@ function CalendarCard({ state, setState, page, setPage }) {
       )}
 
       {view === "month" && (
-        <div>
+        <div className="fade-in-up">
           <div style={{ textAlign: "center", fontFamily: "var(--font-heading)", fontWeight: "var(--font-heading-weight)", fontSize: 18, marginBottom: 8 }}>
             {MONTH_NAMES[monthAnchor.getMonth()]} {monthAnchor.getFullYear()}
           </div>
@@ -937,7 +939,7 @@ function LiftRow({ lift, onUpdate, onToggle, onRemove, dragProps }) {
 
   return (
     <div className="row-item" onDragOver={dragProps.onDragOver()} onDrop={dragProps.onDrop(lift.id)}>
-      <button onClick={onToggle} className="check-circle" style={{ background: lift.done ? "var(--color-accent)" : "transparent" }}>{lift.done ? "✓" : ""}</button>
+      <button key={lift.done} onClick={onToggle} className="check-circle pop-in" style={{ background: lift.done ? "var(--color-accent)" : "transparent" }}>{lift.done ? "✓" : ""}</button>
       <DragHandle onDragStart={dragProps.onDragStart(lift.id)} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {editing ? (
@@ -975,7 +977,7 @@ function GymDayPanel({ day, lifts, onUpdateLifts, gymLog, gymPointer, onSetHabit
   function addLift(name) { onUpdateLifts([...lifts, { id: uid("l"), name, subtitle: "", reps: "3×10", done: false }]); }
 
   return (
-    <div style={{ padding: "var(--space-3) 0 0", borderTop: "1px dashed var(--color-divider)" }}>
+    <div className="fade-in-up" style={{ padding: "var(--space-3) 0 0", borderTop: "1px dashed var(--color-divider)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
         <span className="tag tag-accent" style={{ fontSize: 13, padding: "6px 14px", fontWeight: 700 }}>DAY {day.id}</span>
         <div className="card-title" style={{ fontSize: 19, margin: 0 }}>{day.label}</div>
@@ -1284,7 +1286,7 @@ function HabitRow({ habit, onUpdate, onRemove }) {
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "var(--space-4)", background: "var(--color-surface)", border: "1px solid var(--color-divider)", borderLeft: `5px solid ${habit.color}`, borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)" }}>
-      <button onClick={toggleToday} title="Mark done today" style={{ width: 40, height: 40, flex: "none", borderRadius: "50%", border: `2px solid ${habit.color}`, background: doneToday ? habit.color : "transparent", color: "var(--color-bg)", cursor: "pointer", fontSize: 20, lineHeight: 1 }}>{doneToday ? "✓" : ""}</button>
+      <button key={doneToday} onClick={toggleToday} title="Mark done today" className="pop-in" style={{ width: 40, height: 40, flex: "none", borderRadius: "50%", border: `2px solid ${habit.color}`, background: doneToday ? habit.color : "transparent", color: "var(--color-bg)", cursor: "pointer", fontSize: 20, lineHeight: 1 }}>{doneToday ? "✓" : ""}</button>
       <div style={{ flex: 1, minWidth: 0 }}>
         {editing ? (
           <input autoFocus className="input" value={name} onChange={(e) => setName(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} style={{ fontSize: 19 }} />
@@ -1292,7 +1294,7 @@ function HabitRow({ habit, onUpdate, onRemove }) {
           <div style={{ fontSize: 19, fontWeight: 600 }}>{habit.name}</div>
         )}
       </div>
-      <span style={{ fontFamily: "var(--font-heading)", fontStyle: "italic", fontWeight: "var(--font-heading-weight)", color: "var(--color-accent-700)", fontSize: 20, whiteSpace: "nowrap", transform: "rotate(-2deg)" }}>
+      <span className={streak > 0 ? "streak-pulse" : ""} style={{ fontFamily: "var(--font-heading)", fontStyle: "italic", fontWeight: "var(--font-heading-weight)", color: "var(--color-accent-700)", fontSize: 20, whiteSpace: "nowrap", transform: "rotate(-2deg)", display: "inline-block" }}>
         {streak > 0 ? `${streak} day streak` : "start today"}
       </span>
       <IconButton title="Edit" onClick={() => setEditing((v) => !v)}>{editing ? "✓" : "✎"}</IconButton>
