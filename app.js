@@ -289,7 +289,7 @@ function NavHeader({ userName, onImportClick }) {
         <div style={{ fontFamily: "var(--font-heading)", fontWeight: "var(--font-heading-weight)", fontSize: 30, lineHeight: 1.15 }}>
           {greetWord}, {userName}
         </div>
-        <button className="btn btn-ghost" style={{ fontSize: 11, padding: "2px 0" }} onClick={onImportClick}>⇪ import schedule</button>
+        <button className="btn btn-ghost" style={{ fontSize: 11, padding: "2px 0" }} onClick={onImportClick}>⇪ data</button>
       </div>
       <div className="assistant-line" style={{ marginLeft: "auto" }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-accent-700)", display: "inline-block", flex: "none" }}></span>
@@ -301,7 +301,112 @@ function NavHeader({ userName, onImportClick }) {
 
 /* ============================== Import modal ============================== */
 
-function ImportModal({ state, setState, onClose }) {
+function DataModal({ state, setState, onClose }) {
+  const [tab, setTab] = useState("schedule");
+
+  return (
+    <div className="dialog-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="dialog" style={{ width: "min(640px,100%)" }}>
+        <div className="dialog-title">Data</div>
+        <div className="seg" style={{ alignSelf: "flex-start" }}>
+          <button className={"seg-opt" + (tab === "schedule" ? " active" : "")} onClick={() => setTab("schedule")}>Import schedule</button>
+          <button className={"seg-opt" + (tab === "export" ? " active" : "")} onClick={() => setTab("export")}>Export backup</button>
+          <button className={"seg-opt" + (tab === "restore" ? " active" : "")} onClick={() => setTab("restore")}>Restore backup</button>
+        </div>
+        {tab === "schedule" && <ImportScheduleTab state={state} setState={setState} />}
+        {tab === "export" && <ExportBackupTab state={state} />}
+        {tab === "restore" && <RestoreBackupTab setState={setState} />}
+        <div className="dialog-actions">
+          <button className="btn btn-secondary" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExportBackupTab({ state }) {
+  function download() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `life-planner-backup-${toISODate(new Date())}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="dialog-body">
+        Downloads everything in this browser right now — courses, classes, assignments, gym setup and progress, habits,
+        and to-dos — as one JSON file. Keep it somewhere safe (Drive, email to yourself, etc.) so you can restore it
+        here or on another device later.
+      </div>
+      <button className="btn btn-primary" style={{ alignSelf: "flex-start" }} onClick={download}>⇩ Download backup</button>
+    </div>
+  );
+}
+
+function RestoreBackupTab({ setState }) {
+  const [text, setText] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState(null);
+  const [message, setMessage] = useState(null);
+
+  function onFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setText(reader.result);
+    reader.readAsText(file);
+  }
+
+  function restore() {
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      setError("That doesn't look like valid JSON — " + e.message);
+      setMessage(null);
+      return;
+    }
+    if (!data.courses || !data.events || !data.gym || !data.habits || !data.personal) {
+      setError("This doesn't look like a life-planner backup file.");
+      setMessage(null);
+      return;
+    }
+    setError(null);
+    setState(data);
+    setMessage("Backup restored — this browser now matches the file.");
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="dialog-body">
+        Restoring <strong>replaces everything</strong> currently in this browser with what's in the backup file — use
+        this to bring a saved backup onto a new device or browser.
+      </div>
+      <input type="file" accept="application/json" onChange={onFile} />
+      <textarea
+        className="input"
+        style={{ minHeight: 140, fontFamily: "ui-monospace, monospace", fontSize: 12 }}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Or paste backup JSON here"
+      />
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+        <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+        I understand this replaces everything currently in this browser.
+      </label>
+      {error && <div style={{ color: TYPE_COLORS.deadline, fontSize: 12 }}>{error}</div>}
+      {message && <div style={{ color: "var(--color-accent-700)", fontSize: 12 }}>{message}</div>}
+      <button className="btn btn-primary" style={{ alignSelf: "flex-start" }} disabled={!text.trim() || !confirmed} onClick={restore}>Restore backup</button>
+    </div>
+  );
+}
+
+function ImportScheduleTab({ state, setState }) {
   const [text, setText] = useState("");
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
@@ -416,27 +521,21 @@ function ImportModal({ state, setState, onClose }) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="dialog" style={{ width: "min(640px,100%)" }}>
-        <div className="dialog-title">Import schedule</div>
-        <div className="dialog-body">
-          Paste a JSON block with <code>term</code>, <code>courses</code>, <code>classes</code>, <code>recurring</code>,
-          and/or a <code>gym</code> setup — it merges into what you already have, nothing gets erased.
-        </div>
-        <textarea
-          className="input"
-          style={{ minHeight: 220, fontFamily: "ui-monospace, monospace", fontSize: 12 }}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder='{"courses": [...], "classes": [...], "gym": {...}}'
-        />
-        {error && <div style={{ color: TYPE_COLORS.deadline, fontSize: 12 }}>{error}</div>}
-        {message && <div style={{ color: "var(--color-accent-700)", fontSize: 12 }}>{message}</div>}
-        <div className="dialog-actions">
-          <button className="btn btn-secondary" onClick={onClose}>Close</button>
-          <button className="btn btn-primary" onClick={apply}>Import</button>
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="dialog-body">
+        Paste a JSON block with <code>term</code>, <code>courses</code>, <code>classes</code>, <code>recurring</code>,
+        and/or a <code>gym</code> setup — it merges into what you already have, nothing gets erased.
       </div>
+      <textarea
+        className="input"
+        style={{ minHeight: 220, fontFamily: "ui-monospace, monospace", fontSize: 12 }}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder='{"courses": [...], "classes": [...], "gym": {...}}'
+      />
+      {error && <div style={{ color: TYPE_COLORS.deadline, fontSize: 12 }}>{error}</div>}
+      {message && <div style={{ color: "var(--color-accent-700)", fontSize: 12 }}>{message}</div>}
+      <button className="btn btn-primary" style={{ alignSelf: "flex-start" }} onClick={apply}>Import</button>
     </div>
   );
 }
@@ -1410,7 +1509,7 @@ function App() {
     <div className="app-shell">
       <NavHeader userName={state.settings.userName} onImportClick={() => setShowImport(true)} />
       {content}
-      {showImport && <ImportModal state={state} setState={setState} onClose={() => setShowImport(false)} />}
+      {showImport && <DataModal state={state} setState={setState} onClose={() => setShowImport(false)} />}
     </div>
   );
 }
