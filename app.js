@@ -610,7 +610,6 @@ function CalendarCard({ state, setState, page, setPage }) {
   const [weekAnchor, setWeekAnchor] = useState(() => new Date());
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
   const [showAdd, setShowAdd] = useState(false);
-  const [compact, setCompact] = useState(false);
   const [overlay, setOverlay] = useState(false);
   const [form, setForm] = useState({ title: "", day: "0", start: "9", end: "10", type: "personal", repeat: "none", courseId: "" });
 
@@ -678,9 +677,6 @@ function CalendarCard({ state, setState, page, setPage }) {
             <button className="tag tag-accent" style={{ border: "none", cursor: "pointer" }} onClick={() => setOverlay(false)}>
               Habit overlay on ✕
             </button>
-          )}
-          {view === "week" && (
-            <button className="btn btn-ghost" onClick={() => setCompact((v) => !v)}>{compact ? "Expand hours" : "Compact hours"}</button>
           )}
           <button className="btn btn-ghost" onClick={() => (view === "week" ? setWeekAnchor(addDays(weekMonday, -7)) : setMonthAnchor(new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() - 1, 1)))}>‹</button>
           <button className="btn btn-ghost" onClick={() => { setWeekAnchor(new Date()); setMonthAnchor(new Date()); }}>today</button>
@@ -813,14 +809,20 @@ function CalendarCard({ state, setState, page, setPage }) {
               ))}
             </div>
           )}
-          {!overlay && (
-            <div style={{ maxHeight: compact ? 340 : 2000, overflow: "hidden", transition: "max-height .25s ease" }}>
-              <div style={{ position: "relative", display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", gridTemplateRows: `repeat(${HOURS.length},34px)`, minWidth: 920, background: "var(--color-surface)", backgroundImage: "repeating-linear-gradient(to bottom,color-mix(in srgb, var(--color-text) 20%, transparent) 0,color-mix(in srgb, var(--color-text) 20%, transparent) 1px,transparent 1px,transparent 34px)" }}>
+          {!overlay && (() => {
+            const grid = (
+              <div style={{ position: "relative", display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", gridTemplateRows: `repeat(${HOURS.length},34px)`, minWidth: 920, background: "var(--color-surface)" }}>
+                {weekDates.map((d, i) => (
+                  <div key={`bg-${i}`} style={{ gridColumn: i + 2, gridRow: "1 / -1", background: sameDate(d, today) ? "rgba(182,130,53,0.1)" : "var(--color-surface)" }}></div>
+                ))}
                 {HOURS.map((h, i) => (
-                  <div key={h} style={{ gridColumn: 1, gridRow: i + 1, fontSize: 10, opacity: 0.6, padding: "2px 6px", textAlign: "right" }}>{hourLabel(h)}</div>
+                  <div key={`hline-${h}`} style={{ gridColumn: "1 / -1", gridRow: i + 1, borderTop: i === 0 ? "none" : "1px solid rgba(32,31,29,0.18)" }}></div>
                 ))}
                 {weekDates.map((d, i) => (
-                  <div key={i} style={{ gridColumn: i + 2, gridRow: "1 / -1", borderLeft: "1px solid color-mix(in srgb, var(--color-text) 20%, transparent)", background: sameDate(d, today) ? "color-mix(in srgb, var(--color-accent) 8%, transparent)" : "transparent" }}></div>
+                  <div key={`vline-${i}`} style={{ gridColumn: i + 2, gridRow: "1 / -1", borderLeft: "1px solid rgba(32,31,29,0.18)" }}></div>
+                ))}
+                {HOURS.map((h, i) => (
+                  <div key={h} style={{ gridColumn: 1, gridRow: i + 1, fontSize: 10, opacity: 0.6, padding: "2px 6px", textAlign: "right", position: "relative", zIndex: 2 }}>{hourLabel(h)}</div>
                 ))}
                 {weekEvents.filter((ev) => ev.type !== "deadline").map((ev) => {
                   const dayIdx = ev.occursOn.getDay() === 0 ? 6 : ev.occursOn.getDay() - 1;
@@ -836,8 +838,9 @@ function CalendarCard({ state, setState, page, setPage }) {
                   );
                 })}
               </div>
-            </div>
-          )}
+            );
+            return grid;
+          })()}
         </div>
       )}
 
