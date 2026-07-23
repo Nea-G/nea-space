@@ -612,11 +612,18 @@ function CalendarCard({ state, setState, page, setPage }) {
   const [showAdd, setShowAdd] = useState(false);
   const [overlay, setOverlay] = useState(false);
   const [form, setForm] = useState({ title: "", day: "0", start: "9", end: "10", type: "personal", repeat: "none", courseId: "" });
+  const todayHeaderRef = useRef(null);
 
   const today = startOfDay(new Date());
   const weekMonday = startOfWeek(weekAnchor);
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekMonday, i));
   const weekEvents = useMemo(() => eventsForWeek(state.events, weekMonday), [state.events, weekMonday]);
+
+  useEffect(() => {
+    if (view === "week" && todayHeaderRef.current) {
+      todayHeaderRef.current.scrollIntoView({ inline: "start", block: "nearest" });
+    }
+  }, [view, weekMonday]);
   const courseColorMap = useMemo(() => Object.fromEntries(state.courses.map((c) => [c.id, c.color])), [state.courses]);
   function eventColor(ev) { return (ev.courseId && courseColorMap[ev.courseId]) || TYPE_COLORS[ev.type]; }
 
@@ -761,7 +768,7 @@ function CalendarCard({ state, setState, page, setPage }) {
           <div style={{ display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", minWidth: 920 }}>
             <div></div>
             {weekDates.map((d, i) => (
-              <div key={i} style={{ background: sameDate(d, today) ? "var(--color-accent-100)" : "transparent", padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--color-divider)" }}>
+              <div key={i} ref={sameDate(d, today) ? todayHeaderRef : null} style={{ background: sameDate(d, today) ? "var(--color-accent-100)" : "transparent", padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--color-divider)" }}>
                 <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", opacity: 0.65 }}>{DAY_NAMES[i]}</div>
                 <div style={{ fontFamily: "var(--font-heading)", fontWeight: "var(--font-heading-weight)", fontSize: 16 }}>{d.getDate()}</div>
               </div>
