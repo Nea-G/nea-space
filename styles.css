@@ -192,7 +192,11 @@ textarea.input { resize: vertical; }
 }
 
 /* — layout helpers — */
-.app-shell { max-width: 1680px; margin: 0 auto; padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
+.app-shell {
+  max-width: 1680px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-6); min-width: 0;
+  padding: calc(var(--space-6) + env(safe-area-inset-top)) calc(var(--space-6) + env(safe-area-inset-right))
+           calc(var(--space-6) + env(safe-area-inset-bottom)) calc(var(--space-6) + env(safe-area-inset-left));
+}
 .app-shell > * { min-width: 0; }
 .nav-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); }
 .nav-cards .nav-card:nth-child(1) { animation-delay: 0s; }
@@ -239,9 +243,16 @@ textarea.input { resize: vertical; }
   animation: fadeInUp .3s cubic-bezier(.16, 1, .3, 1) both;
   transition: border-color .15s ease, transform .15s ease;
 }
-.row-item.dragover { border-color: var(--color-accent); }
 .row-item:hover { transform: translateX(2px); }
-.drag-handle { cursor: grab; flex: none; color: var(--color-neutral-400); font-size: 15px; line-height: 1; user-select: none; }
+
+.order-btn {
+  width: 22px; height: 18px; flex: none; border: 1px solid var(--color-divider); background: transparent;
+  border-radius: 3px; cursor: pointer; font-size: 8px; line-height: 1; color: var(--color-neutral-600);
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  transition: background-color .15s ease, transform .15s ease;
+}
+.order-btn:active:not(:disabled) { transform: scale(.9); background: color-mix(in srgb, var(--color-accent) 15%, transparent); }
+.order-btn:disabled { opacity: .25; cursor: default; }
 
 .icon-btn {
   width: 26px; height: 26px; flex: none; border: 1px solid var(--color-divider); background: transparent;
@@ -274,12 +285,23 @@ textarea.input { resize: vertical; }
 
 /* — mobile — */
 @media (max-width: 720px) {
-  .app-shell { padding: var(--space-3); gap: var(--space-4); }
+  .app-shell {
+    gap: var(--space-4);
+    padding: calc(var(--space-3) + env(safe-area-inset-top)) calc(var(--space-3) + env(safe-area-inset-right))
+             calc(var(--space-3) + env(safe-area-inset-bottom)) calc(var(--space-3) + env(safe-area-inset-left));
+  }
   .nav { flex-wrap: wrap; }
   .nav-cards { grid-template-columns: 1fr 1fr; }
+  .calendar-header { flex-direction: column; align-items: stretch !important; }
+  .calendar-controls { justify-content: flex-start; }
   h2 { font-size: 24px; }
   .add-event-row { flex-direction: column; align-items: stretch !important; }
   .add-event-row > * { min-width: 0 !important; }
+
+  /* iOS Safari zooms the page in on focus of any form field under 16px — force 16px
+     regardless of the inline font-size each field was given (needs !important to
+     beat React's inline styles from here). */
+  input, select, textarea, .input { font-size: 16px !important; }
 }
 @media (max-width: 480px) {
   .nav-cards { grid-template-columns: 1fr; }

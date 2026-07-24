@@ -163,46 +163,38 @@ function updateItem(arr, id, patch) {
   return arr.map((x) => (x.id === id ? { ...x, ...(typeof patch === "function" ? patch(x) : patch) } : x));
 }
 function removeItem(arr, id) { return arr.filter((x) => x.id !== id); }
-function reorderArray(arr, fromId, toId) {
-  const fromIdx = arr.findIndex((x) => x.id === fromId);
-  const toIdx = arr.findIndex((x) => x.id === toId);
-  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return arr;
+function moveItem(arr, id, dir) {
+  const idx = arr.findIndex((x) => x.id === id);
+  const newIdx = idx + dir;
+  if (idx === -1 || newIdx < 0 || newIdx >= arr.length) return arr;
   const copy = arr.slice();
-  const [moved] = copy.splice(fromIdx, 1);
-  copy.splice(toIdx, 0, moved);
+  const tmp = copy[idx];
+  copy[idx] = copy[newIdx];
+  copy[newIdx] = tmp;
   return copy;
-}
-
-function useDragReorder(onReorder) {
-  const dragId = useRef(null);
-  return {
-    onDragStart: (id) => (e) => { dragId.current = id; try { e.dataTransfer.effectAllowed = "move"; } catch (err) {} },
-    onDragOver: () => (e) => { e.preventDefault(); },
-    onDrop: (id) => (e) => {
-      e.preventDefault();
-      if (dragId.current == null || dragId.current === id) return;
-      onReorder(dragId.current, id);
-      dragId.current = null;
-    },
-  };
 }
 
 /* ============================== small shared components ============================== */
 
-function DragHandle(props) {
-  return <span className="drag-handle" title="Drag to reorder" draggable onDragStart={props.onDragStart}>⠇</span>;
+function OrderButtons({ onUp, onDown, disableUp, disableDown }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: "none", gap: 1 }}>
+      <button type="button" onClick={onUp} disabled={disableUp} title="Move up" className="order-btn">▲</button>
+      <button type="button" onClick={onDown} disabled={disableDown} title="Move down" className="order-btn">▼</button>
+    </div>
+  );
 }
 
 function IconButton(props) {
   return (
-    <button className={"icon-btn" + (props.danger ? " danger" : "")} title={props.title} onClick={props.onClick}>
+    <button className={"icon-btn" + (props.danger ? " danger" : "")} title={props.title} onClick={props.onClick} style={props.style}>
       {props.children}
     </button>
   );
 }
 
-/* A row with: check circle / checkbox, drag handle, editable text (toggle), remove button. Used by School todos + Personal todos. */
-function TodoRow({ item, onToggle, onRemove, onUpdate, dragProps, checkboxStyle }) {
+/* A row with: check circle / checkbox, move up/down, editable text (toggle), remove button. Used by School todos + Personal todos. */
+function TodoRow({ item, onToggle, onRemove, onUpdate, onMoveUp, onMoveDown, isFirst, isLast, checkboxStyle }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   useEffect(() => { setDraft(item.text); }, [item.text]);
@@ -217,8 +209,6 @@ function TodoRow({ item, onToggle, onRemove, onUpdate, dragProps, checkboxStyle 
     <div
       className="row-item"
       style={{ padding: "6px 10px", background: "var(--color-surface)", border: "1px solid var(--color-divider)" }}
-      onDragOver={dragProps.onDragOver()}
-      onDrop={dragProps.onDrop(item.id)}
     >
       {checkboxStyle ? (
         <input type="checkbox" checked={item.done} onChange={onToggle} style={{ flex: "none" }} />
@@ -234,7 +224,7 @@ function TodoRow({ item, onToggle, onRemove, onUpdate, dragProps, checkboxStyle 
           }}
         />
       )}
-      <DragHandle onDragStart={dragProps.onDragStart(item.id)} />
+      <OrderButtons onUp={onMoveUp} onDown={onMoveDown} disableUp={isFirst} disableDown={isLast} />
       {editing ? (
         <input
           autoFocus
@@ -246,7 +236,7 @@ function TodoRow({ item, onToggle, onRemove, onUpdate, dragProps, checkboxStyle 
           style={{ flex: 1, minWidth: 0, fontSize: 13, padding: "2px 6px" }}
         />
       ) : (
-        <span style={{ flex: 1, minWidth: 0, fontSize: 13, textDecoration: item.done ? "line-through" : "none", opacity: item.done ? 0.55 : 1 }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 13, textDecoration: item.done ? "line-through" : "none", opacity: item.done ? 0.55 : 1, overflowWrap: "anywhere" }}>
           {item.text}
         </span>
       )}
@@ -605,14 +595,74 @@ function gymLabelForDate(gym, dateISO, isPast, predictedDay) {
   return { n: predictedDay, label: day ? day.label : "", done: false };
 }
 
+function DayDetailModal({ date, state, setState, eventColor, onClose }) {
+  const iso = toISODate(date);
+  const wkMon = startOfWeek(date);
+  const dayEvents = eventsForWeek(state.events, wkMon).filter((e) => sameDate(e.occursOn, date)).sort((a, b) => a.start - b.start);
+  const label = `${DAY_NAMES_FULL[weekdayIndex(date)]}, ${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
+
+  function toggleHabit(habitId) {
+    setState((s) => ({
+      ...s,
+      habits: updateItem(s.habits, habitId, (h) => {
+        const history = { ...h.history };
+        if (history[iso]) delete history[iso]; else history[iso] = true;
+        return { history };
+      }),
+    }));
+  }
+  function removeEvent(id) { setState((s) => ({ ...s, events: removeItem(s.events, id) })); }
+
+  return (
+    <div className="dialog-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="dialog" style={{ width: "min(480px,100%)", maxHeight: "min(640px, 85vh)", overflowY: "auto" }}>
+        <div className="dialog-title">{label}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", opacity: 0.6 }}>Scheduled</div>
+          {dayEvents.length === 0 && <div className="text-muted" style={{ fontSize: 13 }}>Nothing scheduled.</div>}
+          {dayEvents.map((ev) => (
+            <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "var(--color-surface)", border: "1px solid var(--color-divider)", borderLeft: `3px solid ${eventColor(ev)}`, borderRadius: "var(--radius-md)" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, overflowWrap: "anywhere" }}>{ev.title}</div>
+                {ev.subtitle && <div style={{ fontSize: 11, opacity: 0.75, overflowWrap: "anywhere" }}>{ev.subtitle}</div>}
+                <div style={{ fontSize: 11, opacity: 0.6 }}>{hourLabel(ev.start)}–{hourLabel(ev.end)}</div>
+              </div>
+              <IconButton title="Remove" danger onClick={() => removeEvent(ev.id)}>✕</IconButton>
+            </div>
+          ))}
+        </div>
+        <div className="hr" style={{ margin: "6px 0" }}></div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", opacity: 0.6 }}>Habits — tap to toggle</div>
+          {state.habits.length === 0 && <div className="text-muted" style={{ fontSize: 13 }}>No habits yet.</div>}
+          {state.habits.map((h) => {
+            const done = !!h.history[iso];
+            return (
+              <button key={h.id} onClick={() => toggleHabit(h.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", background: "var(--color-surface)", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", cursor: "pointer", font: "inherit", color: "inherit", textAlign: "left" }}>
+                <span style={{ width: 18, height: 18, borderRadius: "50%", border: `1.5px solid ${h.color}`, background: done ? h.color : "transparent", flex: "none" }}></span>
+                <span style={{ fontSize: 13, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{h.name}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="dialog-actions">
+          <button className="btn btn-secondary" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CalendarCard({ state, setState, page, setPage }) {
   const [view, setView] = useState("week");
   const [weekAnchor, setWeekAnchor] = useState(() => new Date());
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
   const [showAdd, setShowAdd] = useState(false);
   const [overlay, setOverlay] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
   const [form, setForm] = useState({ title: "", day: "0", start: "9", end: "10", type: "personal", repeat: "none", courseId: "" });
   const todayHeaderRef = useRef(null);
+  const weekScrollRef = useRef(null);
 
   const today = startOfDay(new Date());
   const weekMonday = startOfWeek(weekAnchor);
@@ -620,8 +670,10 @@ function CalendarCard({ state, setState, page, setPage }) {
   const weekEvents = useMemo(() => eventsForWeek(state.events, weekMonday), [state.events, weekMonday]);
 
   useEffect(() => {
-    if (view === "week" && todayHeaderRef.current) {
-      todayHeaderRef.current.scrollIntoView({ inline: "start", block: "nearest" });
+    if (view === "week" && todayHeaderRef.current && weekScrollRef.current) {
+      // offset by the sticky 56px hour/label rail so today's column doesn't land underneath it
+      const target = todayHeaderRef.current.offsetLeft - 56;
+      weekScrollRef.current.scrollLeft = Math.max(0, target);
     }
   }, [view, weekMonday]);
   const courseColorMap = useMemo(() => Object.fromEntries(state.courses.map((c) => [c.id, c.color])), [state.courses]);
@@ -673,13 +725,14 @@ function CalendarCard({ state, setState, page, setPage }) {
   const monthCells = Array.from({ length: weeksNeeded * 7 }, (_, i) => addDays(monthGridStart, i));
 
   return (
+    <React.Fragment>
     <div className="card elev-sm" style={{ padding: "var(--space-4)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-3)", marginBottom: "var(--space-3)" }}>
+      <div className="calendar-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-3)", marginBottom: "var(--space-3)" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0, background: "linear-gradient(transparent 58%, var(--color-accent-200) 58%)", display: "inline-block", padding: "0 8px" }}>Calendar</h2>
           <span style={{ whiteSpace: "nowrap", fontFamily: "var(--font-heading)", fontStyle: "italic", color: "var(--color-accent-700)", fontSize: 15, display: "inline-block", transform: "rotate(-1.5deg)" }}>the week, plotted.</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
+        <div className="calendar-controls" style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
           {overlay && (
             <button className="tag tag-accent" style={{ border: "none", cursor: "pointer" }} onClick={() => setOverlay(false)}>
               Habit overlay on ✕
@@ -764,9 +817,9 @@ function CalendarCard({ state, setState, page, setPage }) {
       )}
 
       {view === "week" && (
-        <div className="fade-in-up" style={{ overflowX: "auto" }}>
+        <div className="fade-in-up" ref={weekScrollRef} style={{ overflowX: "auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", minWidth: 920 }}>
-            <div></div>
+            <div style={{ position: "sticky", left: 0, zIndex: 4, background: "var(--color-bg)" }}></div>
             {weekDates.map((d, i) => (
               <div key={i} ref={sameDate(d, today) ? todayHeaderRef : null} style={{ background: sameDate(d, today) ? "var(--color-accent-100)" : "transparent", padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--color-divider)" }}>
                 <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", opacity: 0.65 }}>{DAY_NAMES[i]}</div>
@@ -775,7 +828,7 @@ function CalendarCard({ state, setState, page, setPage }) {
             ))}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", minWidth: 920, borderBottom: "1px solid var(--color-divider)" }}>
-            <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", opacity: 0.5, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 6 }}>due</div>
+            <div style={{ position: "sticky", left: 0, zIndex: 4, background: "var(--color-bg)", fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", opacity: 0.5, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 6 }}>due</div>
             {weekDates.map((d, i) => {
               const iso = toISODate(d);
               const dues = weekEvents.filter((e) => e.type === "deadline" && sameDate(e.occursOn, d));
@@ -790,7 +843,7 @@ function CalendarCard({ state, setState, page, setPage }) {
             })}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", minWidth: 920, borderBottom: "1px solid var(--color-divider)" }}>
-            <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", opacity: 0.5, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 6 }}>gym</div>
+            <div style={{ position: "sticky", left: 0, zIndex: 4, background: "var(--color-bg)", fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", opacity: 0.5, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 6 }}>gym</div>
             {gymCells.map((gc, i) => (
               <div key={i} style={{ padding: "3px 4px", display: "flex", alignItems: "center", justifyContent: "center", borderLeft: "1px solid var(--color-divider)", minHeight: 20 }}>
                 {gc && (
@@ -803,7 +856,7 @@ function CalendarCard({ state, setState, page, setPage }) {
           </div>
           {overlay && (
             <div style={{ display: "grid", gridTemplateColumns: "56px repeat(7,minmax(120px,1fr))", minWidth: 920, borderBottom: "1px solid var(--color-divider)" }}>
-              <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", opacity: 0.5, display: "flex", alignItems: "flex-start", justifyContent: "flex-end", padding: "6px 6px 0 0" }}>habits</div>
+              <div style={{ position: "sticky", left: 0, zIndex: 4, background: "var(--color-bg)", fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", opacity: 0.5, display: "flex", alignItems: "flex-start", justifyContent: "flex-end", padding: "6px 6px 0 0" }}>habits</div>
               {habitOverlayCols.map((cols, i) => (
                 <div key={i} style={{ borderLeft: "1px solid var(--color-divider)", padding: "6px 5px", display: "flex", flexDirection: "column", gap: 5, minHeight: 90 }}>
                   {cols.map((h, j) => (
@@ -829,7 +882,7 @@ function CalendarCard({ state, setState, page, setPage }) {
                   <div key={`vline-${i}`} style={{ gridColumn: i + 2, gridRow: "1 / -1", borderLeft: "1px solid rgba(32,31,29,0.18)" }}></div>
                 ))}
                 {HOURS.map((h, i) => (
-                  <div key={h} style={{ gridColumn: 1, gridRow: i + 1, fontSize: 10, opacity: 0.6, padding: "2px 6px", textAlign: "right", position: "relative", zIndex: 2 }}>{hourLabel(h)}</div>
+                  <div key={h} style={{ gridColumn: 1, gridRow: i + 1, fontSize: 10, opacity: 0.6, padding: "2px 6px", textAlign: "right", position: "sticky", left: 0, zIndex: 4, background: "var(--color-surface)" }}>{hourLabel(h)}</div>
                 ))}
                 {weekEvents.filter((ev) => ev.type !== "deadline").map((ev) => {
                   const dayIdx = ev.occursOn.getDay() === 0 ? 6 : ev.occursOn.getDay() - 1;
@@ -866,27 +919,31 @@ function CalendarCard({ state, setState, page, setPage }) {
               const dEvents = eventsForWeek(state.events, wkMon).filter((e) => sameDate(e.occursOn, d));
               const iso = toISODate(d);
               return (
-                <div key={i} style={{ background: sameDate(d, today) ? "var(--color-accent-100)" : "var(--color-bg)", minHeight: 92, minWidth: 0, padding: 6, display: "flex", flexDirection: "column", gap: 3, opacity: inMonth ? 1 : 0.4 }}>
+                <button
+                  key={i} onClick={() => setSelectedDay(d)}
+                  style={{ width: "100%", background: sameDate(d, today) ? "var(--color-accent-100)" : "var(--color-bg)", minHeight: 58, minWidth: 0, padding: 6, display: "flex", flexDirection: "column", gap: 4, opacity: inMonth ? 1 : 0.4, border: "none", cursor: "pointer", font: "inherit", color: "inherit", textAlign: "left" }}
+                >
                   <div style={{ fontFamily: "var(--font-heading)", fontWeight: "var(--font-heading-weight)", fontSize: 13 }}>{d.getDate()}</div>
-                  {!overlay && dEvents.slice(0, 3).map((ev) => (
-                    <div key={ev.id} style={{ fontSize: 9, lineHeight: 1.25, padding: "2px 5px", borderLeft: `3px solid ${eventColor(ev)}`, background: "color-mix(in srgb, " + eventColor(ev) + " 14%, var(--color-bg))", borderRadius: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {hourLabel(ev.start)} {ev.title}
+                  {!overlay && dEvents.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                      {dEvents.slice(0, 6).map((ev) => (
+                        <span key={ev.id} style={{ width: 6, height: 6, borderRadius: "50%", background: eventColor(ev), flex: "none" }}></span>
+                      ))}
+                      {dEvents.length > 6 && <span style={{ fontSize: 8, opacity: 0.6 }}>+{dEvents.length - 6}</span>}
                     </div>
-                  ))}
-                  {overlay && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
+                  )}
+                  {overlay && state.habits.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
                       {state.habits.map((h) => (
-                        <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9, lineHeight: 1.15 }}>
-                          <span style={{ width: 12, height: 12, flex: "none", borderRadius: "50%", border: `1.5px solid ${h.color}`, background: h.history[iso] ? h.color : "transparent" }}></span>
-                          <span style={{ opacity: d > today ? 0.4 : 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
-                        </div>
+                        <span key={h.id} style={{ width: 7, height: 7, borderRadius: "50%", border: `1.2px solid ${h.color}`, background: h.history[iso] ? h.color : "transparent", flex: "none" }}></span>
                       ))}
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
+          <div className="text-muted" style={{ fontSize: 11, marginTop: 6 }}>Tap a day to see everything scheduled on it.</div>
         </div>
       )}
 
@@ -894,6 +951,8 @@ function CalendarCard({ state, setState, page, setPage }) {
         <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setOverlay((v) => !v)}>{overlay ? "Hide habit overlay" : "Show habit overlay"}</button>
       </div>
     </div>
+    {selectedDay && <DayDetailModal date={selectedDay} state={state} setState={setState} eventColor={eventColor} onClose={() => setSelectedDay(null)} />}
+    </React.Fragment>
   );
 }
 
@@ -937,41 +996,52 @@ function HomeDashboard({ state, setState, setPage }) {
 
 /* ============================== Gym page ============================== */
 
-function LiftRow({ lift, onUpdate, onToggle, onRemove, dragProps }) {
+function LiftRow({ lift, onUpdate, onToggle, onRemove, onMoveUp, onMoveDown, isFirst, isLast }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(lift.name);
-  useEffect(() => { setName(lift.name); }, [lift.name]);
+  const [subtitle, setSubtitle] = useState(lift.subtitle);
+  useEffect(() => { setName(lift.name); setSubtitle(lift.subtitle); }, [lift.name, lift.subtitle]);
 
-  function commitName() {
-    if (name.trim()) onUpdate({ name: name.trim() });
+  function commit() {
+    onUpdate({ name: name.trim() || lift.name, subtitle: subtitle.trim() });
     setEditing(false);
   }
 
   return (
-    <div className="row-item" onDragOver={dragProps.onDragOver()} onDrop={dragProps.onDrop(lift.id)}>
-      <button key={lift.done} onClick={onToggle} className="check-circle pop-in" style={{ background: lift.done ? "var(--color-accent)" : "transparent" }}>{lift.done ? "✓" : ""}</button>
-      <DragHandle onDragStart={dragProps.onDragStart(lift.id)} />
+    <div className="row-item" style={{ alignItems: editing ? "flex-start" : "center" }}>
+      <button key={lift.done} onClick={onToggle} className="check-circle pop-in" style={{ background: lift.done ? "var(--color-accent)" : "transparent", marginTop: editing ? 6 : 0 }}>{lift.done ? "✓" : ""}</button>
+      <OrderButtons onUp={onMoveUp} onDown={onMoveDown} disableUp={isFirst} disableDown={isLast} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {editing ? (
-          <input
-            autoFocus className="input" value={name} onChange={(e) => setName(e.target.value)}
-            onBlur={commitName} onKeyDown={(e) => { if (e.key === "Enter") commitName(); }}
-            style={{ fontSize: 14, fontWeight: 600, padding: "3px 8px" }}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <input
+              autoFocus className="input" value={name} onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+              style={{ fontSize: 14, fontWeight: 600, padding: "3px 8px" }}
+            />
+            <input
+              className="input" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder="add a note…"
+              onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+              style={{ fontSize: 12, padding: "3px 8px" }}
+            />
+          </div>
         ) : (
-          <div style={{ fontSize: 14, fontWeight: 600, textDecoration: lift.done ? "line-through" : "none", opacity: lift.done ? 0.6 : 1 }}>{lift.name}</div>
+          <React.Fragment>
+            <div style={{ fontSize: 14, fontWeight: 600, textDecoration: lift.done ? "line-through" : "none", opacity: lift.done ? 0.6 : 1, overflowWrap: "anywhere" }}>{lift.name}</div>
+            {lift.subtitle && <div style={{ fontSize: 11, color: "var(--color-neutral-700)", lineHeight: 1.3, overflowWrap: "anywhere", marginTop: 1 }}>{lift.subtitle}</div>}
+          </React.Fragment>
         )}
-        <input
-          value={lift.subtitle} onChange={(e) => onUpdate({ subtitle: e.target.value })} placeholder="add a note…"
-          style={{ display: "block", width: "100%", fontSize: 11, color: "var(--color-neutral-700)", background: "transparent", border: "none", borderBottom: "1px dashed transparent", padding: "1px 0", fontFamily: "var(--font-body)" }}
-        />
       </div>
       <input
         value={lift.reps} onChange={(e) => onUpdate({ reps: e.target.value })}
-        style={{ fontSize: 13, fontWeight: 700, color: "var(--color-accent-800)", background: "var(--color-accent-100)", border: "1px solid var(--color-accent-300)", padding: "4px 10px", borderRadius: 999, width: 88, textAlign: "center", flex: "none" }}
+        style={{ fontSize: 13, fontWeight: 700, color: "var(--color-accent-800)", background: "var(--color-accent-100)", border: "1px solid var(--color-accent-300)", padding: "4px 8px", borderRadius: 999, width: 72, textAlign: "center", flex: "none", marginTop: editing ? 6 : 0 }}
       />
-      <IconButton title="Edit name" onClick={() => setEditing((v) => !v)}>{editing ? "✓" : "✎"}</IconButton>
-      <IconButton title="Remove" danger onClick={onRemove}>✕</IconButton>
+      {editing ? (
+        <IconButton title="Save" onClick={commit} style={{ marginTop: 6 }}>✓</IconButton>
+      ) : (
+        <IconButton title="Edit" onClick={() => setEditing(true)}>✎</IconButton>
+      )}
+      <IconButton title="Remove" danger onClick={onRemove} style={{ marginTop: editing ? 6 : 0 }}>✕</IconButton>
     </div>
   );
 }
@@ -980,7 +1050,6 @@ function GymDayPanel({ day, lifts, onUpdateLifts, gymLog, gymPointer, onSetHabit
   const today = toISODate(startOfDay(new Date()));
   const doneCount = lifts.filter((l) => l.done).length;
   const habitDoneToday = gymLog[today] === day.id;
-  const drag = useDragReorder((from, to) => onUpdateLifts(reorderArray(lifts, from, to)));
 
   function patchLift(id, patch) { onUpdateLifts(updateItem(lifts, id, patch)); }
   function removeLift(id) { onUpdateLifts(removeItem(lifts, id)); }
@@ -993,8 +1062,12 @@ function GymDayPanel({ day, lifts, onUpdateLifts, gymLog, gymPointer, onSetHabit
         <div className="card-title" style={{ fontSize: 19, margin: 0 }}>{day.label}</div>
         <span style={{ marginLeft: "auto", transform: "rotate(-2deg)", background: "var(--color-accent-2-200)", color: "var(--color-accent-2-800)", fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 999 }}>{doneCount}/{lifts.length} done</span>
       </div>
-      {lifts.map((l) => (
-        <LiftRow key={l.id} lift={l} onUpdate={(p) => patchLift(l.id, p)} onToggle={() => patchLift(l.id, { done: !l.done })} onRemove={() => removeLift(l.id)} dragProps={drag} />
+      {lifts.map((l, idx) => (
+        <LiftRow
+          key={l.id} lift={l} onUpdate={(p) => patchLift(l.id, p)} onToggle={() => patchLift(l.id, { done: !l.done })} onRemove={() => removeLift(l.id)}
+          onMoveUp={() => onUpdateLifts(moveItem(lifts, l.id, -1))} onMoveDown={() => onUpdateLifts(moveItem(lifts, l.id, 1))}
+          isFirst={idx === 0} isLast={idx === lifts.length - 1}
+        />
       ))}
       <AddInline placeholder="+ add a movement, press Enter" onAdd={addLift} />
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginTop: "var(--space-3)" }}>
@@ -1094,7 +1167,6 @@ function GymPage({ state, setState, setPage }) {
 /* ============================== School page ============================== */
 
 function CourseCard({ course, assignments, totalAssignmentCount, onUpdate, onRemove, onAddAssignment, onRemoveAssignment, onAddRecurring }) {
-  const drag = useDragReorder((from, to) => onUpdate({ todos: reorderArray(course.todos, from, to) }));
   const [editingHeader, setEditingHeader] = useState(false);
   const [code, setCode] = useState(course.code);
   const [name, setName] = useState(course.name);
@@ -1186,8 +1258,12 @@ function CourseCard({ course, assignments, totalAssignmentCount, onUpdate, onRem
       <div className="hr" style={{ margin: "var(--space-2) 0" }}></div>
       <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", opacity: 0.6 }}>To-do</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {course.todos.map((t) => (
-          <TodoRow key={t.id} item={t} onToggle={() => patchTodo(t.id, { done: !t.done })} onRemove={() => removeTodo(t.id)} onUpdate={(p) => patchTodo(t.id, p)} dragProps={drag} />
+        {course.todos.map((t, idx) => (
+          <TodoRow
+            key={t.id} item={t} onToggle={() => patchTodo(t.id, { done: !t.done })} onRemove={() => removeTodo(t.id)} onUpdate={(p) => patchTodo(t.id, p)}
+            onMoveUp={() => onUpdate({ todos: moveItem(course.todos, t.id, -1) })} onMoveDown={() => onUpdate({ todos: moveItem(course.todos, t.id, 1) })}
+            isFirst={idx === 0} isLast={idx === course.todos.length - 1}
+          />
         ))}
       </div>
       <AddInline placeholder="+ add task, press Enter" onAdd={addTodo} />
@@ -1295,20 +1371,22 @@ function HabitRow({ habit, onUpdate, onRemove }) {
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "var(--space-4)", background: "var(--color-surface)", border: "1px solid var(--color-divider)", borderLeft: `5px solid ${habit.color}`, borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)" }}>
+    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "var(--space-4)", background: "var(--color-surface)", border: "1px solid var(--color-divider)", borderLeft: `5px solid ${habit.color}`, borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)" }}>
       <button key={doneToday} onClick={toggleToday} title="Mark done today" className="pop-in" style={{ width: 40, height: 40, flex: "none", borderRadius: "50%", border: `2px solid ${habit.color}`, background: doneToday ? habit.color : "transparent", color: "var(--color-bg)", cursor: "pointer", fontSize: 20, lineHeight: 1 }}>{doneToday ? "✓" : ""}</button>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: "1 1 120px", minWidth: 0 }}>
         {editing ? (
           <input autoFocus className="input" value={name} onChange={(e) => setName(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} style={{ fontSize: 19 }} />
         ) : (
-          <div style={{ fontSize: 19, fontWeight: 600 }}>{habit.name}</div>
+          <div style={{ fontSize: 19, fontWeight: 600, overflowWrap: "anywhere" }}>{habit.name}</div>
         )}
       </div>
-      <span className={streak > 0 ? "streak-pulse" : ""} style={{ fontFamily: "var(--font-heading)", fontStyle: "italic", fontWeight: "var(--font-heading-weight)", color: "var(--color-accent-700)", fontSize: 20, whiteSpace: "nowrap", transform: "rotate(-2deg)", display: "inline-block" }}>
-        {streak > 0 ? `${streak} day streak` : "start today"}
-      </span>
-      <IconButton title="Edit" onClick={() => setEditing((v) => !v)}>{editing ? "✓" : "✎"}</IconButton>
-      <IconButton title="Remove" danger onClick={onRemove}>✕</IconButton>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+        <span className={streak > 0 ? "streak-pulse" : ""} style={{ fontFamily: "var(--font-heading)", fontStyle: "italic", fontWeight: "var(--font-heading-weight)", color: "var(--color-accent-700)", fontSize: 20, whiteSpace: "nowrap", transform: "rotate(-2deg)", display: "inline-block" }}>
+          {streak > 0 ? `${streak} day streak` : "start today"}
+        </span>
+        <IconButton title="Edit" onClick={() => setEditing((v) => !v)}>{editing ? "✓" : "✎"}</IconButton>
+        <IconButton title="Remove" danger onClick={onRemove}>✕</IconButton>
+      </div>
     </div>
   );
 }
@@ -1430,8 +1508,7 @@ function HabitsPage({ state, setState, setPage }) {
 
 /* ============================== Personal page ============================== */
 
-function PersonalList({ title, subtitle, items, onAdd, onUpdateItem, onRemoveItem, onReorder, onUpdateMeta, color, badgeRotate }) {
-  const drag = useDragReorder(onReorder);
+function PersonalList({ title, subtitle, items, onAdd, onUpdateItem, onRemoveItem, onMoveItem, onUpdateMeta, color, badgeRotate }) {
   const [editingHeader, setEditingHeader] = useState(false);
   const [t, setT] = useState(title);
   const [s, setS] = useState(subtitle);
@@ -1454,8 +1531,12 @@ function PersonalList({ title, subtitle, items, onAdd, onUpdateItem, onRemoveIte
         </div>
       )}
       <div className="hr"></div>
-      {items.map((it) => (
-        <TodoRow key={it.id} item={it} checkboxStyle onToggle={() => onUpdateItem(it.id, { done: !it.done })} onRemove={() => onRemoveItem(it.id)} onUpdate={(p) => onUpdateItem(it.id, p)} dragProps={drag} />
+      {items.map((it, idx) => (
+        <TodoRow
+          key={it.id} item={it} checkboxStyle onToggle={() => onUpdateItem(it.id, { done: !it.done })} onRemove={() => onRemoveItem(it.id)} onUpdate={(p) => onUpdateItem(it.id, p)}
+          onMoveUp={() => onMoveItem(it.id, -1)} onMoveDown={() => onMoveItem(it.id, 1)}
+          isFirst={idx === 0} isLast={idx === items.length - 1}
+        />
       ))}
       <AddInline placeholder="+ add task" onAdd={onAdd} />
     </div>
@@ -1481,7 +1562,7 @@ function PersonalPage({ state, setState, setPage }) {
             onAdd={(text) => patch((p) => ({ ...p, utfr: [...p.utfr, { id: uid("t"), text, done: false }] }))}
             onUpdateItem={(id, pt) => patch((p) => ({ ...p, utfr: updateItem(p.utfr, id, pt) }))}
             onRemoveItem={(id) => patch((p) => ({ ...p, utfr: removeItem(p.utfr, id) }))}
-            onReorder={(from, to) => patch((p) => ({ ...p, utfr: reorderArray(p.utfr, from, to) }))}
+            onMoveItem={(id, dir) => patch((p) => ({ ...p, utfr: moveItem(p.utfr, id, dir) }))}
             onUpdateMeta={({ title, subtitle }) => patch((p) => ({ ...p, utfrTitle: title, utfrSubtitle: subtitle }))}
           />
           <PersonalList
@@ -1489,7 +1570,7 @@ function PersonalPage({ state, setState, setPage }) {
             onAdd={(text) => patch((p) => ({ ...p, general: [...p.general, { id: uid("t"), text, done: false }] }))}
             onUpdateItem={(id, pt) => patch((p) => ({ ...p, general: updateItem(p.general, id, pt) }))}
             onRemoveItem={(id) => patch((p) => ({ ...p, general: removeItem(p.general, id) }))}
-            onReorder={(from, to) => patch((p) => ({ ...p, general: reorderArray(p.general, from, to) }))}
+            onMoveItem={(id, dir) => patch((p) => ({ ...p, general: moveItem(p.general, id, dir) }))}
             onUpdateMeta={({ title, subtitle }) => patch((p) => ({ ...p, generalTitle: title, generalSubtitle: subtitle }))}
           />
         </div>
